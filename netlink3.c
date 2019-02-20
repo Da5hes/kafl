@@ -52,6 +52,7 @@ int main(int argc, char **argv) {
         lseek(payloadfd[0], 0, SEEK_SET);
         lseek(payloadfd[1], 0, SEEK_SET);
         kAFL_hypercall(HYPERCALL_KAFL_NEXT_PAYLOAD, 0);
+
         write(payloadfd[0], payload_buffer->data, payload_buffer->size-4);
 
         if (read(payloadfd[1],&p, sizeof(p)) != sizeof(p)){
@@ -78,7 +79,10 @@ int main(int argc, char **argv) {
 
 
         p.msg.msg_name = &p.name;
-
+        p.name.nl_family = AF_NETLINK;
+        p.type = 3;
+        p.protocol = 6;
+        p.msg.msg_namelen = sizeof(p.name);
         struct iovec iov = {
             .iov_base = &buffer[0],
             .iov_len = (size_t)len,
@@ -88,8 +92,8 @@ int main(int argc, char **argv) {
         p.msg.msg_iovlen = 1;
         p.msg.msg_control = 0;
         p.msg.msg_controllen = 0;
-
-        kAFL_hypercall(HYPERCALL_KAFL_ACQUIRE, 0); 
+        p.name.nl_pid = 0;
+        kAFL_hypercall(HYPERCALL_KAFL_ACQUIRE, 0);
         int g = sendmsg(sock, &p.msg, p.flags);
         if (g<0){
             printf("failed sendmsg");
