@@ -71,9 +71,9 @@ int main(int argc, char **argv) {
         socklen_t optlen = sizeof(rcvbuf);
         rcvbuf = UINT_MAX;
         sndbuf = UINT_MAX;
-        if (setsockopt(sock_fd,SOL_SOCKET,SO_RCVBUF,&rcvbuf,sizeof(rcvbuf)) < 0)
+        if (setsockopt(sock,SOL_SOCKET,SO_RCVBUF,&rcvbuf,sizeof(rcvbuf)) < 0)
             return -1;
-        if (setsockopt(sock_fd,SOL_SOCKET,SO_RCVBUF,&sndbuf,sizeof(sndbuf)) < 0)
+        if (setsockopt(sock,SOL_SOCKET,SO_RCVBUF,&sndbuf,sizeof(sndbuf)) < 0)
             return -1;
 
 
@@ -87,11 +87,12 @@ int main(int argc, char **argv) {
         p.msg.msg_iov = &iov;
         p.msg.msg_iovlen = 1;
         p.msg.msg_control = 0;
+        p.msg.msg_controllen = 0;
+
         kAFL_hypercall(HYPERCALL_KAFL_ACQUIRE, 0); 
         int g = sendmsg(sock, &p.msg, p.flags);
         if (g<0){
             printf("failed sendmsg");
-            return -1;
         }
         close(sock);
         kAFL_hypercall(HYPERCALL_KAFL_RELEASE, 0);
