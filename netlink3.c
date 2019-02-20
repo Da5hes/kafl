@@ -46,40 +46,59 @@ int main(int argc, char **argv) {
     int payloadfd[2];
     payloadfd[0] = open(TEMPPAYLOAD, O_RDWR | O_CREAT | O_SYNC, 0777);
     payloadfd[1] = open(TEMPPAYLOAD, O_RDWR | O_CREAT | O_SYNC, 0777);
-    kAFL_hypercall(HYPERCALL_KAFL_GET_PAYLOAD, (uint64_t)payload_buffer);
     kAFL_hypercall(HYPERCALL_KAFL_SUBMIT_CR3, 0);
+    kAFL_hypercall(HYPERCALL_KAFL_GET_PAYLOAD, (uint64_t)payload_buffer);
     while(1){
-        kAFL_hypercall(HYPERCALL_KAFL_NEXT_PAYLOAD, 0);
-
         lseek(payloadfd[0], 0, SEEK_SET);
+        lseek(payloadfd[1], 0, SEEK_SET);
+        kAFL_hypercall(HYPERCALL_KAFL_NEXT_PAYLOAD, 0);
         write(payloadfd[0], payload_buffer->data, payload_buffer->size-4);
-        
+
         if (read(payloadfd[1],&p, sizeof(p)) != sizeof(p)){
             close(payloadfd[1]);
             return -1;
         }
         len = read(payloadfd[1],buffer,sizeof(buffer));
-        close(payloadfd[1]);
-        if(len <0)
+        if(len <0){
+            close(payloadfd[1]);
             return -1;
+        }
 
-        int sock = socket(AF_NETLINK, p.type, p.protocol);
+        int sock = socket(16, 3, 6);
         if (sock == -1)
             return -1;
+        unsigned int rcvbuf,sndbuf;
+        socklen_t optlen = sizeof(rcvbuf);
+        rcvbuf = UINT_MAX;
+        sndbuf = UINT_MAX;
+        if (setsockopt(sock_fd,SOL_SOCKET,SO_RCVBUF,&rcvbuf,sizeof(rcvbuf)) < 0)
+            return -1;
+        if (setsockopt(sock_fd,SOL_SOCKET,SO_RCVBUF,&sndbuf,sizeof(sndbuf)) < 0)
+            return -1;
+
+
         p.msg.msg_name = &p.name;
 
         struct iovec iov = {
             .iov_base = &buffer[0],
-            .iov_len = (size_t) len,
+            .iov_len = (size_t)len,
         };
+
         p.msg.msg_iov = &iov;
         p.msg.msg_iovlen = 1;
         p.msg.msg_control = 0;
         kAFL_hypercall(HYPERCALL_KAFL_ACQUIRE, 0); 
-        sendmsg(sock, &p.msg, p.flags);
+        int g = sendmsg(sock, &p.msg, p.flags);
+        if (g<0){
+            printf("failed sendmsg");
+            return -1;
+        }
         close(sock);
         kAFL_hypercall(HYPERCALL_KAFL_RELEASE, 0);
-    }
+        
 
+    }
+    close(payloadfd[0]);
+    close(payloadfd[1]);
 
 }
