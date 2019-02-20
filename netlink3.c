@@ -43,23 +43,23 @@ int main(int argc, char **argv) {
 
     kAFL_payload* payload_buffer = mmap((void*)NULL, PAYLOAD_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     memset(payload_buffer, 0xff, PAYLOAD_SIZE);
+    int payloadfd[2];
+    payloadfd[0] = open(TEMPPAYLOAD, O_RDWR | O_CREAT | O_SYNC, 0777);
+    payloadfd[1] = open(TEMPPAYLOAD, O_RDWR | O_CREAT | O_SYNC, 0777);
     kAFL_hypercall(HYPERCALL_KAFL_GET_PAYLOAD, (uint64_t)payload_buffer);
     kAFL_hypercall(HYPERCALL_KAFL_SUBMIT_CR3, 0);
-
-
-    int payloadfd = open(TEMPPAYLOAD, O_RDWR | O_CREAT | O_SYNC, 0777);
     while(1){
         kAFL_hypercall(HYPERCALL_KAFL_NEXT_PAYLOAD, 0);
 
-        lseek(payloadfd, 0, SEEK_SET);
-        write(payloadfd, payload_buffer->data, payload_buffer->size-4);
-        int payl = open(TEMPPAYLOAD, O_RDONLY);
-        if (read(payl,&p, sizeof(p)) != sizeof(p)){
-            close(payl);
+        lseek(payloadfd[0], 0, SEEK_SET);
+        write(payloadfd[0], payload_buffer->data, payload_buffer->size-4);
+        
+        if (read(payloadfd[1],&p, sizeof(p)) != sizeof(p)){
+            close(payloadfd[1]);
             return -1;
         }
-        len = read(payl,buffer,sizeof(buffer));
-        close(payl);
+        len = read(payloadfd[1],buffer,sizeof(buffer));
+        close(payloadfd[1]);
         if(len <0)
             return -1;
 
